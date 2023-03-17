@@ -1,5 +1,6 @@
 package com.codewithkael.webrtcprojectforrecord.utils
 
+import android.util.Log
 import org.webrtc.*
 
 open class PeerConnectionObserver : PeerConnection.Observer{
@@ -31,8 +32,10 @@ open class PeerConnectionObserver : PeerConnection.Observer{
     }
 
     override fun onRenegotiationNeeded() {
+
     }
 
     override fun onAddTrack(p0: RtpReceiver?, p1: Array<out MediaStream>?) {
+
     }
 }

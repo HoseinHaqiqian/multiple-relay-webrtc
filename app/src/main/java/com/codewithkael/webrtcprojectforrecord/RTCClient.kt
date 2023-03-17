@@ -1,37 +1,44 @@
 package com.codewithkael.webrtcprojectforrecord
 
 import android.app.Application
+import android.util.Log
 import com.codewithkael.webrtcprojectforrecord.models.MessageModel
 import org.webrtc.*
+import org.webrtc.PeerConnection.Observer
+import java.util.UUID
 
 class RTCClient(
     private val application: Application,
-    private val username: String,
     private val socketRepository: SocketRepository,
-    private val observer: PeerConnection.Observer
+    private val localUsername: String
 ) {
 
     init {
         initPeerConnectionFactory(application)
     }
 
-    private val eglContext = EglBase.create()
+    companion object {
+        val eglContext = EglBase.create()
+    }
+
     private val peerConnectionFactory by lazy { createPeerConnectionFactory() }
     private val iceServer = listOf(
-        PeerConnection.IceServer.builder("stun:iphone-stun.strato-iphone.de:3478").createIceServer(),
-        PeerConnection.IceServer("stun:openrelay.metered.ca:80"),
-        PeerConnection.IceServer("turn:openrelay.metered.ca:80","openrelayproject","openrelayproject"),
-        PeerConnection.IceServer("turn:openrelay.metered.ca:443","openrelayproject","openrelayproject"),
-        PeerConnection.IceServer("turn:openrelay.metered.ca:443?transport=tcp","openrelayproject","openrelayproject"),
+        PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
+        PeerConnection.IceServer.builder("turn:77.73.67.64:3478")
+            .setUsername("turn-demo-server")
+            .setPassword("coiansliocuna89s7ca")
+            .createIceServer(),
 
         )
-    private val peerConnection by lazy { createPeerConnection(observer) }
+    private val peerConnections: ArrayList<Pair<String, PeerConnection>> = arrayListOf()
+
+    //    private val peerConnection by lazy { createPeerConnection(observer) }
     private val localVideoSource by lazy { peerConnectionFactory.createVideoSource(false) }
     private val localAudioSource by lazy { peerConnectionFactory.createAudioSource(MediaConstraints()) }
     private var videoCapturer: CameraVideoCapturer? = null
     private var localAudioTrack: AudioTrack? = null
     private var localVideoTrack: VideoTrack? = null
-
+    private var localStream: MediaStream? = null
 
     private fun initPeerConnectionFactory(application: Application) {
         val peerConnectionOption = PeerConnectionFactory.InitializationOptions.builder(application)
@@ -50,8 +57,7 @@ class RTCClient(
                     true,
                     true
                 )
-            )
-            .setVideoDecoderFactory(DefaultVideoDecoderFactory(eglContext.eglBaseContext))
+            ).setVideoDecoderFactory(DefaultVideoDecoderFactory(eglContext.eglBaseContext))
             .setOptions(PeerConnectionFactory.Options().apply {
                 disableEncryption = true
                 disableNetworkMonitor = true
@@ -70,25 +76,46 @@ class RTCClient(
         }
     }
 
-    fun startLocalVideo(surface: SurfaceViewRenderer) {
+    fun startLocalVideoAndAudio(surface: SurfaceViewRenderer) {
         val surfaceTextureHelper =
             SurfaceTextureHelper.create(Thread.currentThread().name, eglContext.eglBaseContext)
         videoCapturer = getVideoCapturer(application)
         videoCapturer?.initialize(
             surfaceTextureHelper,
-            surface.context, localVideoSource.capturerObserver
+            surface.context,
+            localVideoSource.capturerObserver
         )
         videoCapturer?.startCapture(320, 240, 30)
-        localVideoTrack = peerConnectionFactory.createVideoTrack("local_track", localVideoSource)
+        localVideoTrack =
+            peerConnectionFactory.createVideoTrack("${localUsername}_video_track", localVideoSource)
         localVideoTrack?.addSink(surface)
         localAudioTrack =
-            peerConnectionFactory.createAudioTrack("local_track_audio", localAudioSource)
-        val localStream = peerConnectionFactory.createLocalMediaStream("local_stream")
-        localStream.addTrack(localAudioTrack)
-        localStream.addTrack(localVideoTrack)
+            peerConnectionFactory.createAudioTrack("${localUsername}_audio_track", localAudioSource)
+        localStream = peerConnectionFactory.createLocalMediaStream(UUID.randomUUID().toString())
+        localStream!!.addTrack(localVideoTrack)
+        localStream!!.addTrack(localAudioTrack)
+    }
 
-        peerConnection?.addStream(localStream)
+    fun addStreamToPeerConnection(target: String) {
+        getPeerConnection(target)?.addStream(localStream)
+    }
 
+    fun broadcastStreams(target: String, streamList: List<MediaStream>) {
+        val peerConnection = getPeerConnection(target)
+        if(streamList.isEmpty())return
+        val stream = streamList[0]
+
+        peerConnection?.addTrack(stream.audioTracks[0], listOf(stream.id))
+        peerConnection?.addTrack(stream.videoTracks[0], listOf(stream.id))
+    }
+
+    fun initPeerConnection(username: String, observer: Observer) {
+        val foundPeerC = peerConnections.find { it.first == username }
+        Log.d("InitPeerConnection", "Peer Connection already init = ${foundPeerC != null}")
+        if (foundPeerC != null) return
+        val peerConnection = createPeerConnection(observer)!!
+
+        peerConnections.add(Pair(username, peerConnection))
     }
 
     private fun getVideoCapturer(application: Application): CameraVideoCapturer {
@@ -97,19 +124,19 @@ class RTCClient(
                 isFrontFacing(it)
             }?.let {
                 createCapturer(it, null)
-            } ?: throw
-            IllegalStateException()
+            } ?: throw IllegalStateException()
         }
     }
 
     fun call(target: String) {
         val mediaConstraints = MediaConstraints()
         mediaConstraints.mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"))
-
-
-        peerConnection?.createOffer(object : SdpObserver {
+        mediaConstraints.mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
+        val peerConnection = getPeerConnection(target)
+        Log.d("CreateOffer", "Create offer $peerConnection")
+        peerConnection!!.createOffer(object : SdpObserver {
             override fun onCreateSuccess(desc: SessionDescription?) {
-                peerConnection?.setLocalDescription(object : SdpObserver {
+                peerConnection.setLocalDescription(object : SdpObserver {
                     override fun onCreateSuccess(p0: SessionDescription?) {
 
                     }
@@ -122,17 +149,18 @@ class RTCClient(
 
                         socketRepository.sendMessageToSocket(
                             MessageModel(
-                                "create_offer", username, target, offer
+                                "create_offer", localUsername, target, offer
                             )
                         )
                     }
 
                     override fun onCreateFailure(p0: String?) {
+                        Log.d("LocalDescriptionFailure", p0.toString())
                     }
 
                     override fun onSetFailure(p0: String?) {
+                        Log.d("LocalDescriptionFailure", p0.toString())
                     }
-
                 }, desc)
 
             }
@@ -141,26 +169,33 @@ class RTCClient(
             }
 
             override fun onCreateFailure(p0: String?) {
+                Log.d("OfferCreateFailure", p0.toString())
             }
 
             override fun onSetFailure(p0: String?) {
+                Log.d("LocalDescriptionFailure", p0.toString())
             }
         }, mediaConstraints)
     }
 
-    fun onRemoteSessionReceived(session: SessionDescription) {
-        peerConnection?.setRemoteDescription(object : SdpObserver {
+    fun onRemoteSessionReceived(target: String, session: SessionDescription) {
+        val peerConnection = getPeerConnection(target)
+        if (peerConnection?.signalingState() == PeerConnection.SignalingState.STABLE && peerConnection.remoteDescription?.type == SessionDescription.Type.ANSWER) return
+        getPeerConnection(target)!!.setRemoteDescription(object : SdpObserver {
             override fun onCreateSuccess(p0: SessionDescription?) {
 
             }
 
             override fun onSetSuccess() {
+                Log.d("RemoteDescription", "Remote desc is set successfully")
             }
 
             override fun onCreateFailure(p0: String?) {
+                Log.d("RemoteDescriptionFail", p0.toString())
             }
 
             override fun onSetFailure(p0: String?) {
+                Log.d("RemoteDescriptionFail", p0.toString())
             }
 
         }, session)
@@ -170,10 +205,12 @@ class RTCClient(
     fun answer(target: String) {
         val constraints = MediaConstraints()
         constraints.mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"))
+        constraints.mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
 
-        peerConnection?.createAnswer(object : SdpObserver {
+        val peerConnection = getPeerConnection(target)
+        peerConnection!!.createAnswer(object : SdpObserver {
             override fun onCreateSuccess(desc: SessionDescription?) {
-                peerConnection?.setLocalDescription(object : SdpObserver {
+                peerConnection.setLocalDescription(object : SdpObserver {
                     override fun onCreateSuccess(p0: SessionDescription?) {
                     }
 
@@ -185,15 +222,17 @@ class RTCClient(
                         )
                         socketRepository.sendMessageToSocket(
                             MessageModel(
-                                "create_answer", username, target, answer
+                                "create_answer", localUsername, target, answer
                             )
                         )
                     }
 
                     override fun onCreateFailure(p0: String?) {
+                        Log.e("LocalDescriptionFailure", p0.toString())
                     }
 
                     override fun onSetFailure(p0: String?) {
+                        Log.e("LocalDescriptionFailure", p0.toString())
                     }
 
                 }, desc)
@@ -203,16 +242,19 @@ class RTCClient(
             }
 
             override fun onCreateFailure(p0: String?) {
+                Log.e("CreateAnswerFailure", "Error ${p0}")
             }
 
             override fun onSetFailure(p0: String?) {
+                Log.e("CreateAnswerFailure", "Error ${p0}")
             }
 
         }, constraints)
     }
 
-    fun addIceCandidate(p0: IceCandidate?) {
-        peerConnection?.addIceCandidate(p0)
+    fun addIceCandidate(p0: IceCandidate?, target: String) {
+
+        getPeerConnection(target)!!.addIceCandidate(p0)
     }
 
     fun switchCamera() {
@@ -228,6 +270,71 @@ class RTCClient(
     }
 
     fun endCall() {
-        peerConnection?.close()
+        peerConnections.forEach {
+            it.second.close()
+        }
+        peerConnections.clear()
     }
+
+    private fun getPeerConnection(username: String): PeerConnection? {
+        return peerConnections.find { it.first == username }?.second;
+    }
+
+    fun broadCast(audioTracks: ArrayList<AudioTrack>, videoTracks: ArrayList<VideoTrack>) {
+
+        // peerConnections is list of Pair classes
+        // adding audio/video tracks of first user in stream to second user
+        val peerConnectionWithSecondUser = peerConnections[1].second
+        val stream = peerConnectionFactory.createLocalMediaStream("another_thread")
+        stream.addTrack(audioTracks[0])
+        stream.addTrack(videoTracks[0])
+
+        peerConnectionWithSecondUser.addTrack(stream.audioTracks[0], listOf(stream.id))
+        peerConnectionWithSecondUser.addTrack(stream.videoTracks[0], listOf(stream.id))
+
+    }
+
+    fun isConnectionStable(targetUserNameEt: String?): Boolean {
+        if (targetUserNameEt == null) {
+            peerConnections.forEach {
+                val signalingState = it.second
+                Log.d("SignalingState", "Signaling state 1 ${signalingState?.signalingState()}")
+                Log.d("SignalingState", "Signaling state 1 ${signalingState?.connectionState()}")
+                Log.d("SignalingState", "Signaling state 1 ${signalingState?.iceConnectionState()}")
+                Log.d("SignalingState", "Signaling state 1 ${signalingState?.iceGatheringState()}")
+                Log.d(
+                    "SignalingState",
+                    "Signaling state 1 ${signalingState?.localDescription?.type}"
+                )
+                Log.d(
+                    "SignalingState",
+                    "Signaling state ${signalingState?.remoteDescription?.type}"
+                )
+
+            }
+            return false
+        } else {
+            val signalingState = peerConnections.find { it.first == targetUserNameEt }?.second
+            Log.d("SignalingState", "Signaling state ${signalingState?.signalingState()}")
+            Log.d("SignalingState", "Signaling state ${signalingState?.connectionState()}")
+            Log.d("SignalingState", "Signaling state ${signalingState?.iceConnectionState()}")
+            Log.d("SignalingState", "Signaling state ${signalingState?.iceGatheringState()}")
+            Log.d("SignalingState", "Signaling state ${signalingState?.localDescription?.type}")
+            Log.d("SignalingState", "Signaling state ${signalingState?.remoteDescription?.type}")
+            return signalingState?.connectionState() == PeerConnection.PeerConnectionState.CONNECTED
+        }
+
+    }
+
+    fun printStatus(name: String?) {
+        val signalingState = peerConnections.find { it.first == name }?.second
+        Log.d("SignalingState", "Signaling state ${signalingState?.signalingState()}")
+        Log.d("SignalingState", "Signaling state ${signalingState?.connectionState()}")
+        Log.d("SignalingState", "Signaling state ${signalingState?.iceConnectionState()}")
+        Log.d("SignalingState", "Signaling state ${signalingState?.iceGatheringState()}")
+        Log.d("SignalingState", "Signaling state ${signalingState?.localDescription?.type}")
+        Log.d("SignalingState", "Signaling state ${signalingState?.remoteDescription?.type}")
+    }
+
+
 }
