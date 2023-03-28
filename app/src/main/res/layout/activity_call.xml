@@ -7,170 +7,60 @@
     android:keepScreenOn="true">
 
 
-    <RelativeLayout
-        android:id="@+id/whoToCallLayout"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_below="@+id/incomingCallLayout">
+    <org.webrtc.SurfaceViewRenderer
+        android:id="@+id/local_view"
+        android:layout_width="120dp"
+        android:layout_height="150dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="8dp"
+        android:layout_marginBottom="8dp"
+        android:elevation="16dp" />
 
-        <EditText
-            android:id="@+id/targetUserNameEt"
-            android:layout_width="match_parent"
-            android:layout_height="40dp"
-            android:layout_margin="30dp"
-            android:hint="who to call ?" />
+    <org.webrtc.SurfaceViewRenderer
+        android:id="@+id/remote_view"
+        android:layout_width="120dp"
+        android:layout_height="150dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="8dp"
+        android:layout_marginBottom="8dp"
+        android:layout_toRightOf="@id/local_view"
+        android:elevation="16dp" />
 
-        <androidx.appcompat.widget.AppCompatButton
-            android:id="@+id/callBtn"
-            android:layout_width="match_parent"
-            android:layout_height="40dp"
-            android:layout_below="@id/targetUserNameEt"
-            android:layout_marginHorizontal="30dp"
-            android:text="call" />
-    </RelativeLayout>
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/remote_view"
+        android:layout_alignLeft="@id/local_view">
 
-    <RelativeLayout
-        android:id="@+id/callLayout"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="gone"
-        tools:visibility="visible">
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recyclerView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            />
-
-        <org.webrtc.SurfaceViewRenderer
-            android:id="@+id/local_view"
-            android:layout_width="120dp"
-            android:layout_height="150dp"
-            android:layout_above="@+id/controls"
-            android:layout_marginStart="8dp"
-            android:layout_marginTop="8dp"
-            android:layout_marginEnd="8dp"
-            android:layout_marginBottom="8dp"
-            android:elevation="16dp" />
-
-        <ProgressBar
-            android:id="@+id/remote_view_loading"
+        <Button
+            android:id="@+id/callButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
-            android:indeterminate="true"
-            />
+            android:text="call" />
 
-        <LinearLayout
-            android:id="@+id/controls"
-            android:layout_width="match_parent"
+        <Space
+            android:layout_width="5dp"
+            android:layout_height="wrap_content" />
+
+        <Button
+            android:id="@+id/relayButton"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentBottom="true"
-            android:layout_centerHorizontal="true"
-            android:background="@drawable/curve_background"
-            android:backgroundTint="@android:color/secondary_text_light"
-            android:gravity="center"
-            android:orientation="horizontal">
+            android:text="insert relay" />
 
-            <ImageView
-                android:id="@+id/mic_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_margin="16dp"
-                android:background="@drawable/circle_background"
-                android:clickable="true"
-                android:focusable="true"
-                android:padding="12dp"
-                app:backgroundTint="@color/cardview_dark_background"
-                app:srcCompat="@drawable/ic_baseline_mic_24" />
-
-            <ImageView
-                android:id="@+id/video_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_margin="16dp"
-                android:background="@drawable/circle_background"
-                android:clickable="true"
-                android:focusable="true"
-                android:padding="12dp"
-                app:backgroundTint="@color/cardview_dark_background"
-                app:srcCompat="@drawable/ic_baseline_videocam_24" />
-
-            <ImageView
-                android:id="@+id/end_call_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_margin="16dp"
-                android:background="@drawable/circle_background"
-                android:clickable="true"
-                android:focusable="true"
-                android:padding="12dp"
-                app:backgroundTint="@android:color/holo_red_dark"
-                app:srcCompat="@drawable/ic_baseline_call_end_24" />
-
-            <ImageView
-                android:id="@+id/switch_camera_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_margin="16dp"
-                android:background="@drawable/circle_background"
-                android:clickable="true"
-                android:focusable="true"
-                android:padding="12dp"
-                app:backgroundTint="@color/cardview_dark_background"
-                app:srcCompat="@drawable/ic_baseline_cameraswitch_24" />
-
-            <ImageView
-                android:id="@+id/broadcast_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_margin="16dp"
-                android:background="@drawable/circle_background"
-                android:clickable="true"
-                android:focusable="true"
-                android:padding="12dp"
-                app:backgroundTint="@color/cardview_dark_background"
-                app:srcCompat="@drawable/ic_accept" />
-        </LinearLayout>
-
-    </RelativeLayout>
-
-    <LinearLayout
-        android:id="@+id/incomingCallLayout"
-        android:layout_width="match_parent"
-        android:layout_height="80dp"
-        android:layout_alignParentTop="true"
-        android:orientation="horizontal"
-        android:visibility="gone">
+        <Space
+            android:layout_width="5dp"
+            android:layout_height="wrap_content" />
 
         <TextView
-            android:id="@+id/incomingNameTV"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="6"
-            android:gravity="center"
-            android:text="someone is calling"
-            android:textColor="@color/black"
-            android:textSize="20sp" />
-
-        <ImageView
-            android:id="@+id/acceptButton"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1.5"
-            android:padding="15dp"
-            android:src="@drawable/ic_accept" />
-
-        <ImageView
-            android:id="@+id/rejectButton"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1.5"
-            android:padding="15dp"
-            android:src="@drawable/ic_reject" />
-
-    </LinearLayout>
+            android:id="@+id/relayCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="relay count 0" />
 
 
+    </androidx.appcompat.widget.LinearLayoutCompat>
 
 </RelativeLayout>
