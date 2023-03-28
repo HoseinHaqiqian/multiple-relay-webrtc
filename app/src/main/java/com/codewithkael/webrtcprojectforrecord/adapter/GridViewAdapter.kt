@@ -35,7 +35,6 @@ class RecyclerViewAdapter(
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
 
         (holder.surfaceView).run {
-
             setEnableHardwareScaler(true)
             setMirror(true)
             init(RTCClient.eglContext.eglBaseContext, null)
@@ -53,13 +52,8 @@ class RecyclerViewAdapter(
     }
 
     fun addItem(target: String, stream: MediaStream) {
-        var hasId = false
-        for (remoteId in remoteStreams) {
-            if (remoteId.second.id == stream.id) {
-                hasId = true
-                break
-            }
-        }
+        val hasId = remoteStreams.find { it.second.id == stream.id } != null
+
         Log.d("AddStreamLog", "StreamId was ${stream.id} -- Decision $hasId")
         if (!hasId) {
             remoteStreams.add(Pair(target, stream))
